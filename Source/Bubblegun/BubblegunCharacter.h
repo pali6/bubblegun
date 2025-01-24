@@ -12,6 +12,8 @@ class USkeletalMeshComponent;
 class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
+class UCurveVector;
+class USpringArmComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -29,6 +31,9 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FirstPersonCameraComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* CameraHolderComponent;
+
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputMappingContext* DefaultMappingContext;
@@ -43,8 +48,27 @@ class ABubblegunCharacter : public ACharacter
 
 	/** Look Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputAction* LookAction;
+	UInputAction* LookAction;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
+	UCurveVector* HeadBobCurve;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
+	float HeadBobRotationIntensity = 1.f;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
+	float HeadBobPositionIntensity = 1.f;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
+	float HeadBobFrequency = 2.f;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
+	float HeadBobTransitionTime = 0.3f;
 	
+	float HeadBobTimer = 0.f;
+	float HeadBobTransitionTimer = 0.f;
+	TOptional<FVector2D> LastInput;
+
 public:
 	ABubblegunCharacter();
 
@@ -59,6 +83,7 @@ protected:
 	// APawn interface
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
+	virtual void Tick(float DeltaTime) override;
 	// End of APawn interface
 
 public:
@@ -67,5 +92,7 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+private:
+	void UpdateHeadBob(float DeltaTime);
 };
 
