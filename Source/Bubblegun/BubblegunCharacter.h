@@ -90,11 +90,14 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, Category = Input)
 	TSubclassOf<UBubblegunWeaponComponent> AltWeaponClass;
 
-	UPROPERTY(VisibleAnywhere)
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	UBubblegunWeaponComponent* WeaponComp;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	UBubblegunWeaponComponent* LeftWeaponComp;
+
+private:
 
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
