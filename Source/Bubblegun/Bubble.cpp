@@ -64,6 +64,39 @@ struct MeshRepr {
 		};
 	}
 
+	static MeshRepr GetIcosahedron() {
+		double phi = (1 + FMath::Sqrt(5.0)) / 2;
+		TArray<FVector> positions{
+			{ phi, 1, 0 }, { -phi, 1, 0 }, { phi, -1, 0 }, { -phi, -1, 0 },
+			{ 1, 0, phi }, { 1, 0, -phi }, { -1, 0, phi }, { -1, 0, -phi },
+			{ 0, phi, 1 }, { 0, -phi, 1 }, { 0, phi, -1 }, { 0, -phi, -1 }
+		};
+		TArray<TPair<int32, int32>> edges;
+		edges.Reserve(30);
+		TArray<TTuple<int32, int32, int32>> faces{
+			{ 0, 8, 4 }, { 0, 5, 10 }, { 2, 4, 9 }, { 2, 11, 5 }, { 1, 6, 8 },
+			{ 1, 10, 7 }, { 3, 9, 6 }, { 3, 7, 11 }, { 0, 10, 8 }, { 1, 8, 10 },
+			{ 2, 9, 11 }, { 3, 11, 9 }, { 4, 2, 0 }, { 5, 0, 2 }, { 6, 1, 3 },
+			{ 7, 3, 1 }, { 8, 6, 4 }, { 9, 4, 6 }, { 10, 5, 7 }, { 11, 7, 5 }
+		};
+		for (auto& face : faces) {
+			FVector3d v0 = positions[face.Get<0>()];
+			FVector3d v1 = positions[face.Get<1>()];
+			FVector3d v2 = positions[face.Get<2>()];
+			FVector3d normal = FVector3d::CrossProduct(v1 - v0, v2 - v0).GetSafeNormal();
+			checkf(FVector3d::DotProduct(v0, normal) >= 0, TEXT("Icosahedron face %d %d %d is not CCW"), face.Get<0>(), face.Get<1>(), face.Get<2>());
+			if (face.Get<0>() < face.Get<1>()) edges.Add({ face.Get<0>(), face.Get<1>() });
+			if (face.Get<1>() < face.Get<2>()) edges.Add({ face.Get<1>(), face.Get<2>() });
+			if (face.Get<2>() < face.Get<0>()) edges.Add({ face.Get<2>(), face.Get<0>() });
+		}
+		checkf(edges.Num() == 30, TEXT("Icosahedron has %d edges, expected 30"), edges.Num());
+		return MeshRepr{
+			positions,
+			edges,
+			faces
+		};
+	}
+
 	void Subdivide() {
 		TArray<TPair<int32, int32>> newEdges;
 		TArray<TTuple<int32, int32, int32>> newFaces;
@@ -101,8 +134,8 @@ struct MeshRepr {
 		Faces = newFaces;
 	}
 
-	static MeshRepr GetSphere(float radius, int32 nSubdivisions) {
-		auto mesh = GetOctahedron();
+	static MeshRepr GetSphere(float radius, int32 nSubdivisions, bool bUseIcosahedron = false) {
+		auto mesh = bUseIcosahedron ? GetIcosahedron() : GetOctahedron();
 		for (int32 i = 0; i < nSubdivisions; i++) {
 			mesh.Subdivide();
 		}
@@ -111,7 +144,7 @@ struct MeshRepr {
 	}
 };
 
-
+static FRandomStream BubbleRandomStream = FRandomStream();
 
 // Sets default values
 ABubble::ABubble()
@@ -135,6 +168,66 @@ void ABubble::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	UpdateCenterOfMass();
+
+	if (BigNoiseChangeTimer <= 0 || BubbleRandomStream.GetFraction() < DeltaTime * (1.0 - BigNoiseChangeTimer / BigNoiseChangeInterval)) {
+		BigNoiseVector = BubbleRandomStream.GetUnitVector();
+		BigNoiseChangeTimer = BigNoiseChangeInterval;
+	}
+	BigNoiseChangeTimer -= DeltaTime;
+
+	TArray<FVector3d> forces;
+	forces.Init(FVector3d::Zero(), BubbleMesh->GetDynamicMesh()->GetMeshRef().MaxVertexID());
+	BubbleMesh->GetDynamicMesh()->ProcessMesh(
+		[&](const FDynamicMesh3& Mesh) {
+			for (int32 i = 0; i < Mesh.MaxVertexID(); i++) {
+				FVector3d force{ 0, 0, 0 };
+
+				FVector3d pos = Mesh.GetVertex(i);
+				FVector3d airPressureForce = (pos - CenterOfMass).GetSafeNormal();
+				double comDistance = (pos - CenterOfMass).Size();
+				airPressureForce *= 1 / (comDistance * comDistance) * AirPressureForce;
+				force += airPressureForce;
+
+				Mesh.EnumerateVertexEdges(i, [&](int32 edgeId) {
+					auto edge = Mesh.GetEdge(edgeId);
+					int32 neigh = edge.Vert.A == i ? edge.Vert.B : edge.Vert.A;
+					FVector3d neighPos = Mesh.GetVertex(neigh);
+					FVector3d springForce = (neighPos - pos).GetSafeNormal();
+					double edgeLength = (neighPos - pos).Size();
+					springForce *= (edgeLength - TargetEdgeLengths[edgeId]) * SpringCoefficient;
+					force += springForce;
+				});
+
+				force += BubbleRandomStream.GetUnitVector() * ForceNoiseMagnitude;
+				force += (2.0 * FMath::Abs(FVector3d::DotProduct(pos - CenterOfMass, BigNoiseVector)) - 1) * (CenterOfMass - pos).GetSafeNormal() * ForceBigNoiseMagnitude;
+
+				forces[i] = force;
+			}
+		});
+
+	double deltaTime = FMathf::Min(DeltaTime, 1 / 15.0);
+	BubbleMesh->GetDynamicMesh()->EditMesh(
+		[&](FDynamicMesh3& Mesh) {
+			for (int32 i = 0; i < Mesh.MaxVertexID(); i++) {
+				double mass = 0;
+				Mesh.EnumerateVertexTriangles(i, [&](int32 face) {
+					FVector3d v0, v1, v2;
+					Mesh.GetTriVertices(face, v0, v1, v2);
+					double faceArea = FMath::Abs(FVector3d::CrossProduct(v1 - v0, v2 - v0).Size() / 2);
+					mass += faceArea;
+				});
+				mass /= 3;
+				FVector3d vel = VertexVelocities[i];
+				FVector3d force = forces[i];
+				vel += force * deltaTime;
+				VertexVelocities[i] = vel * VelocityDamping;
+				Mesh.SetVertex(i, Mesh.GetVertex(i) + vel * deltaTime);
+			}
+		}
+	);
+
+	UpdateNormals();
 }
 
 void ABubble::Generate() {
@@ -142,7 +235,7 @@ void ABubble::Generate() {
 		BubbleMesh->DestroyComponent();
 	}
 
-	auto mesh = MeshRepr::GetSphere(Radius, Subdivisions);
+	auto mesh = MeshRepr::GetSphere(Radius, Subdivisions, true);
 
 	BubbleMesh = NewObject<UDynamicMeshComponent>(this);
 	BubbleMesh->RegisterComponent();
@@ -159,6 +252,14 @@ void ABubble::Generate() {
 	for (auto face : mesh.Faces) {
 		dynMesh.AppendTriangle(face.Get<1>(), face.Get<0>(), face.Get<2>());
 	}
+
+	for (auto edge : dynMesh.GetEdgesBuffer()) {
+		FVector3d v0 = dynMesh.GetVertex(edge.Vert.A);
+		FVector3d v1 = dynMesh.GetVertex(edge.Vert.B);
+		TargetEdgeLengths.Add((v1 - v0).Size());
+	}
+
+	VertexVelocities.Init(FVector3d::Zero(), dynMesh.MaxVertexID());
 
 	UDynamicMesh* dynamicMesh = NewObject<UDynamicMesh>();
 	dynamicMesh->SetMesh(MoveTemp(dynMesh));
@@ -184,6 +285,25 @@ void ABubble::UpdateNormals() {
 				FVector3d normal = faceNormalSum / faceCount;
 				Mesh.SetVertexNormal(i, FVector3f(normal));
 			}
+		}
+	);
+}
+
+void ABubble::UpdateCenterOfMass() {
+	BubbleMesh->GetDynamicMesh()->ProcessMesh(
+		[&](const FDynamicMesh3& Mesh) {
+			FVector3d centerOfMass = FVector3d::Zero();
+			double totalArea = 0;
+			for (auto triangleIndex : Mesh.GetTrianglesBuffer()) {
+				FVector3d v0 = Mesh.GetVertex(triangleIndex.A);
+				FVector3d v1 = Mesh.GetVertex(triangleIndex.B);
+				FVector3d v2 = Mesh.GetVertex(triangleIndex.C);
+				FVector3d faceCenter = (v0 + v1 + v2) / 3;
+				double faceArea = FMath::Abs(FVector3d::CrossProduct(v1 - v0, v2 - v0).Size() / 2);
+				centerOfMass += faceCenter * faceArea;
+				totalArea += faceArea;
+			}
+			CenterOfMass = centerOfMass / totalArea;
 		}
 	);
 }
