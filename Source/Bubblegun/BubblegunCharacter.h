@@ -50,6 +50,10 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
 
+	/** Dash Input Action */
+	UPROPERTY(EditDefaultsOnly, Category = Input)
+	UInputAction* DashInputAction;
+
 	UPROPERTY(EditAnywhere, Category = HeadBob)
 	UCurveVector* HeadBobCurve;
 
@@ -64,22 +68,33 @@ class ABubblegunCharacter : public ACharacter
 
 	UPROPERTY(EditAnywhere, Category = HeadBob)
 	float HeadBobTransitionTime = 0.3f;
-	
+
+	UPROPERTY(EditAnywhere, Category = Input)
+	float DashDistance = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = Input)
+	float DashDuration = 1.0f;
+
+	UPROPERTY(EditAnywhere, Category = Input)
+	float DashCooldown = 1.0f;
+
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
 	TOptional<FVector2D> LastInput;
+
+	float DashTimer = -1.f;
+	float DashCooldownTimer = -1.f;
+	int PreDashJumpCount = 0;
 
 public:
 	ABubblegunCharacter();
 
 protected:
-	/** Called for movement input */
-	void Move(const FInputActionValue& Value);
 
-	/** Called for looking input */
-	void Look(const FInputActionValue& Value);
+	void InputMove(const FInputActionValue& Value);
+	void InputLook(const FInputActionValue& Value);
+	void InputDash();
 
-protected:
 	// APawn interface
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
@@ -92,7 +107,12 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+
+	bool IsDashing() const { return DashTimer >= 0.f; }
+	bool CanDash() const { return DashCooldownTimer < 0.f && !IsDashing(); }
+
 private:
 	void UpdateHeadBob(float DeltaTime);
+	void UpdateDash(float DeltaTime);
 };
 

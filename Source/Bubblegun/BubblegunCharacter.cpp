@@ -48,6 +48,29 @@ ABubblegunCharacter::ABubblegunCharacter()
 
 //////////////////////////////////////////////////////////////////////////// Input
 
+void ABubblegunCharacter::InputDash()
+{
+	if (!CanDash())
+	{
+		return;
+	}
+
+	DashCooldownTimer = DashCooldown;
+	DashTimer = DashDuration;
+	PreDashJumpCount = JumpCurrentCount;
+
+	FVector2D Input = LastInput.IsSet()
+		? LastInput.GetValue()
+		: FVector2D(0, 1.f);
+
+	FVector MoveDir = FVector::ZeroVector;
+	MoveDir += GetActorRightVector() * Input.X;
+	MoveDir += GetActorForwardVector() * Input.Y;
+
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Flying);
+	GetCharacterMovement()->Velocity = MoveDir * DashDistance / DashDuration;
+}
+
 void ABubblegunCharacter::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
@@ -72,10 +95,13 @@ void ABubblegunCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		// Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABubblegunCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABubblegunCharacter::InputMove);
 
 		// Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABubblegunCharacter::Look);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABubblegunCharacter::InputLook);
+
+		// Dashing
+		EnhancedInputComponent->BindAction(DashInputAction, ETriggerEvent::Triggered, this, &ABubblegunCharacter::InputDash);
 	}
 	else
 	{
@@ -87,6 +113,7 @@ void ABubblegunCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateHeadBob(DeltaTime);
+	UpdateDash(DeltaTime);
 	LastInput.Reset();
 }
 
@@ -117,8 +144,30 @@ void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)
 	}
 }
 
+void ABubblegunCharacter::UpdateDash(float DeltaTime)
+{
+	if (DashTimer >= 0.f)
+	{
+		// Just finished dashing
+		if (DashTimer < DeltaTime)
+		{
+			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+			GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.GetClampedToSize(0.f, GetCharacterMovement()->MaxWalkSpeed);
+			JumpCurrentCount = PreDashJumpCount;
+		}
 
-void ABubblegunCharacter::Move(const FInputActionValue& Value)
+		DashTimer -= DeltaTime;
+		return;
+	}
+
+	if (DashCooldownTimer >= 0.f)
+	{
+		DashCooldownTimer -= DeltaTime;
+	}
+}
+
+
+void ABubblegunCharacter::InputMove(const FInputActionValue& Value)
 {
 	if (Controller == nullptr)
 	{
@@ -134,7 +183,7 @@ void ABubblegunCharacter::Move(const FInputActionValue& Value)
 	LastInput = MovementVector;
 }
 
-void ABubblegunCharacter::Look(const FInputActionValue& Value)
+void ABubblegunCharacter::InputLook(const FInputActionValue& Value)
 {
 	if (Controller == nullptr)
 	{

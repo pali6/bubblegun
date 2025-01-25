@@ -79,6 +79,7 @@ bool UBubblegunWeaponComponent::AttachWeapon(ABubblegunCharacter* TargetCharacte
 	// Attach the weapon to the First Person Character
 	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
 	AttachToComponent(Character->GetMesh1P(), AttachmentRules, FName(TEXT("GripPoint")));
+	SetRelativeTransform(GripCorrectionTransform);
 
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
