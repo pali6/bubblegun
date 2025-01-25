@@ -128,14 +128,33 @@ void ABubblegunCharacter::Landed(const FHitResult& Hit)
 void ABubblegunCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	if (BubblegunClass == nullptr)
+	if (BubblegunClass)
+	{
+		WeaponComp = NewObject<UBubblegunWeaponComponent>(this, BubblegunClass);
+		WeaponComp->CastShadow = false;
+		WeaponComp->AttachWeapon(this, FName(TEXT("GripPoint")));
+		WeaponComp->RegisterComponent();
+	}
+
+	if (AltWeaponClass)
+	{
+		LeftWeaponComp = NewObject<UBubblegunWeaponComponent>(this, AltWeaponClass);
+		LeftWeaponComp->CastShadow = false;
+		LeftWeaponComp->AttachWeapon(this, FName(TEXT("GripPointLeft")));
+		LeftWeaponComp->RegisterComponent();
+	}
+}
+
+void ABubblegunCharacter::FireSecondaryWeapon()
+{
+	if (!LeftWeaponComp)
 	{
 		return;
 	}
-	WeaponComp = NewObject<UBubblegunWeaponComponent>(this, BubblegunClass);
-	WeaponComp->CastShadow = false;
-	WeaponComp->AttachWeapon(this);
-	WeaponComp->RegisterComponent();
+
+	LeftWeaponComp->FireProjectile();
+	LeftWeaponComp->PlayFireSound();
+	LeftWeaponComp->SpawnFireVFX();
 }
 
 void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)

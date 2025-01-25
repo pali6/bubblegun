@@ -15,7 +15,7 @@ class ABubblegunProjectile : public AActor
 	GENERATED_BODY()
 
 	/** Sphere collision component */
-	UPROPERTY(VisibleDefaultsOnly, Category=Projectile)
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category=Projectile, meta = (AllowPrivateAccess = "true"))
 	USphereComponent* CollisionComp;
 
 	/** Projectile movement component */

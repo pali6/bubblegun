@@ -85,8 +85,15 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, Category = Input)
 	TSubclassOf<UBubblegunWeaponComponent> BubblegunClass;
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = Input)
+	TSubclassOf<UBubblegunWeaponComponent> AltWeaponClass;
+
+	UPROPERTY(VisibleAnywhere)
 	UBubblegunWeaponComponent* WeaponComp;
+
+	UPROPERTY(VisibleAnywhere)
+	UBubblegunWeaponComponent* LeftWeaponComp;
+
 
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
@@ -121,6 +128,9 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+	// For animation notify... the animation is already playing.
+	UFUNCTION(BlueprintCallable)
+	void FireSecondaryWeapon();
 
 	bool IsDashing() const { return DashTimer >= 0.f; }
 	bool CanDash() const { return DashCooldownTimer < 0.f && !IsDashing(); }

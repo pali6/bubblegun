@@ -41,16 +41,37 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Gameplay, meta=(AllowPrivateAccess = "true"))
 	FTransform GripCorrectionTransform;
 
+	/** Sound to play each time we fire */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	float FireCooldown = 0.5f;
+
 	/** Sets default values for this component's properties */
 	UBubblegunWeaponComponent();
 
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
-	bool AttachWeapon(ABubblegunCharacter* TargetCharacter);
+	bool AttachWeapon(ABubblegunCharacter* TargetCharacter, FName SocketName);
 
 	/** Make the weapon Fire a Projectile */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
+
+	UFUNCTION(BlueprintCallable)
+	void FireProjectile();
+
+	UFUNCTION(BlueprintCallable)
+	void PlayFireSound();
+
+	UFUNCTION(BlueprintCallable)
+	void PlayFireAnimation();
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void SpawnFireVFX();
+
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnFire();
 
 	FVector GetMuzzlePoint() const { return GetSocketTransform("MuzzleSocket", RTS_Component).GetTranslation(); }
 
@@ -62,4 +83,5 @@ protected:
 private:
 	/** The Character holding this weapon*/
 	ABubblegunCharacter* Character;
+	float FireCooldownTimer = -1.f;
 };
