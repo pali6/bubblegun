@@ -13,6 +13,7 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 class UCurveVector;
+class UBubblegunWeaponComponent;
 class USpringArmComponent;
 struct FInputActionValue;
 
@@ -58,6 +59,9 @@ class ABubblegunCharacter : public ACharacter
 	UCurveVector* HeadBobCurve;
 
 	UPROPERTY(EditAnywhere, Category = HeadBob)
+	UCurveFloat* LandedCameraCurve;
+
+	UPROPERTY(EditAnywhere, Category = HeadBob)
 	float HeadBobRotationIntensity = 1.f;
 
 	UPROPERTY(EditAnywhere, Category = HeadBob)
@@ -70,13 +74,19 @@ class ABubblegunCharacter : public ACharacter
 	float HeadBobTransitionTime = 0.3f;
 
 	UPROPERTY(EditAnywhere, Category = Input)
-	float DashDistance = 1000.0f;
+	float DashInitialSpeed = 1000.0f;
 
 	UPROPERTY(EditAnywhere, Category = Input)
 	float DashDuration = 1.0f;
 
 	UPROPERTY(EditAnywhere, Category = Input)
 	float DashCooldown = 1.0f;
+
+	UPROPERTY(EditAnywhere, Category = Input)
+	TSubclassOf<UBubblegunWeaponComponent> BubblegunClass;
+
+	UPROPERTY()
+	UBubblegunWeaponComponent* WeaponComp;
 
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
@@ -85,6 +95,8 @@ class ABubblegunCharacter : public ACharacter
 	float DashTimer = -1.f;
 	float DashCooldownTimer = -1.f;
 	int PreDashJumpCount = 0;
+
+	float LandedCameraTimer = 0.f;
 
 public:
 	ABubblegunCharacter();
@@ -99,6 +111,8 @@ protected:
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 	virtual void Tick(float DeltaTime) override;
+	virtual void Landed(const FHitResult& Hit) override;
+	virtual void BeginPlay() override;
 	// End of APawn interface
 
 public:
@@ -113,6 +127,7 @@ public:
 
 private:
 	void UpdateHeadBob(float DeltaTime);
+	void UpdateCameraOffset(float DeltaTime);
 	void UpdateDash(float DeltaTime);
 };
 

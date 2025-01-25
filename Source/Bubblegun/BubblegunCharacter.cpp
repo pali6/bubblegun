@@ -8,6 +8,7 @@
 #include "Curves/CurveVector.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "BubblegunWeaponComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -68,7 +69,7 @@ void ABubblegunCharacter::InputDash()
 	MoveDir += GetActorForwardVector() * Input.Y;
 
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Flying);
-	GetCharacterMovement()->Velocity = MoveDir * DashDistance / DashDuration;
+	GetCharacterMovement()->Velocity = MoveDir * DashInitialSpeed;
 }
 
 void ABubblegunCharacter::NotifyControllerChanged()
@@ -113,8 +114,28 @@ void ABubblegunCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateHeadBob(DeltaTime);
+	UpdateCameraOffset(DeltaTime);
 	UpdateDash(DeltaTime);
 	LastInput.Reset();
+}
+
+void ABubblegunCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	LandedCameraTimer = 0.f;
+}
+
+void ABubblegunCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	if (BubblegunClass == nullptr)
+	{
+		return;
+	}
+	WeaponComp = NewObject<UBubblegunWeaponComponent>(this, BubblegunClass);
+	WeaponComp->CastShadow = false;
+	WeaponComp->AttachWeapon(this);
+	WeaponComp->RegisterComponent();
 }
 
 void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)
@@ -144,10 +165,34 @@ void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)
 	}
 }
 
+void ABubblegunCharacter::UpdateCameraOffset(float DeltaTime)
+{
+	if (!LandedCameraCurve)
+	{
+		return;
+	}
+	
+	// No more than a minute of falling animation, cmon
+	const float SAFE_MAX = 60;
+	if (LandedCameraTimer < SAFE_MAX)
+	{
+		LandedCameraTimer += DeltaTime;
+	}
+
+	// In Meters
+	float CameraOffset = LandedCameraCurve->GetFloatValue(LandedCameraTimer) * 100; 
+	FirstPersonCameraComponent->AddRelativeLocation(FVector(0.f, 0.f, CameraOffset));
+}
+
 void ABubblegunCharacter::UpdateDash(float DeltaTime)
 {
 	if (DashTimer >= 0.f)
 	{
+		FVector Dir = GetCharacterMovement()->Velocity.GetSafeNormal();
+		float StoppingSpeed = GetCharacterMovement()->MaxWalkSpeed;
+		float T = 1.f - DashTimer / DashDuration;
+		GetCharacterMovement()->Velocity = Dir * FMath::Lerp(DashInitialSpeed, StoppingSpeed, T * T * T);
+
 		// Just finished dashing
 		if (DashTimer < DeltaTime)
 		{
