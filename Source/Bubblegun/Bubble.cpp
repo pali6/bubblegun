@@ -240,9 +240,11 @@ void ABubble::Generate() {
 	BubbleMesh = NewObject<UDynamicMeshComponent>(this);
 	BubbleMesh->RegisterComponent();
 	BubbleMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	BubbleMesh->SetMobility(EComponentMobility::Movable);
-	BubbleMesh->SetSimulatePhysics(true);
+	//BubbleMesh->SetMobility(EComponentMobility::Movable);
+	//BubbleMesh->SetSimulatePhysics(true);
 	BubbleMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	BubbleMesh->EnableComplexAsSimpleCollision();
+	BubbleMesh->bEnableComplexCollision = true;
 	BubbleMesh->SetOverrideRenderMaterial(BubbleMaterial);
 
 	FDynamicMesh3 dynMesh{ true, false, false, false };
