@@ -1,8 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Curves/CurveFloat.h"
 #include "BubbleCharacterMovementComponent.h"
+#include "Curves/CurveFloat.h"
 
 float UBubbleCharacterMovementComponent::GetGravityZ() const
 {
