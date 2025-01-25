@@ -8,6 +8,7 @@
 #include "Curves/CurveVector.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "BubblegunWeaponComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -122,6 +123,19 @@ void ABubblegunCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 	LandedCameraTimer = 0.f;
+}
+
+void ABubblegunCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	if (BubblegunClass == nullptr)
+	{
+		return;
+	}
+	WeaponComp = NewObject<UBubblegunWeaponComponent>(this, BubblegunClass);
+	WeaponComp->CastShadow = false;
+	WeaponComp->AttachWeapon(this);
+	WeaponComp->RegisterComponent();
 }
 
 void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)

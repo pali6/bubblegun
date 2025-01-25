@@ -52,6 +52,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
 
+	FVector GetMuzzlePoint() const { return GetSocketTransform("MuzzleSocket", RTS_Component).GetTranslation(); }
+
 protected:
 	/** Ends gameplay for this component. */
 	UFUNCTION()

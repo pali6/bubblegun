@@ -13,6 +13,7 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 class UCurveVector;
+class UBubblegunWeaponComponent;
 class USpringArmComponent;
 struct FInputActionValue;
 
@@ -81,6 +82,12 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, Category = Input)
 	float DashCooldown = 1.0f;
 
+	UPROPERTY(EditAnywhere, Category = Input)
+	TSubclassOf<UBubblegunWeaponComponent> BubblegunClass;
+
+	UPROPERTY()
+	UBubblegunWeaponComponent* WeaponComp;
+
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
 	TOptional<FVector2D> LastInput;
@@ -105,6 +112,7 @@ protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Landed(const FHitResult& Hit) override;
+	virtual void BeginPlay() override;
 	// End of APawn interface
 
 public:

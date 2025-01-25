@@ -12,6 +12,7 @@ ABubblegunProjectile::ABubblegunProjectile()
 	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
 	CollisionComp->OnComponentHit.AddDynamic(this, &ABubblegunProjectile::OnHit);		// set up a notification for when this component hits something blocking
 
+
 	// Players can't walk on it
 	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	CollisionComp->CanCharacterStepUpOn = ECB_No;
@@ -40,4 +41,10 @@ void ABubblegunProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActo
 
 		Destroy();
 	}
+}
+
+void ABubblegunProjectile::BeginPlay()
+{
+	CollisionComp->IgnoreActorWhenMoving(GetInstigator(), true);
+	Super::BeginPlay();
 }
