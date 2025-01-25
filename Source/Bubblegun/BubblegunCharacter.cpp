@@ -155,6 +155,7 @@ void ABubblegunCharacter::FireSecondaryWeapon()
 	LeftWeaponComp->FireProjectile();
 	LeftWeaponComp->PlayFireSound();
 	LeftWeaponComp->SpawnFireVFX();
+	AltFireShot.Broadcast(LeftWeaponComp->GetCooldownRemaining());
 }
 
 void ABubblegunCharacter::UpdateHeadBob(float DeltaTime)

@@ -8,6 +8,8 @@
 
 class ABubblegunCharacter;
 
+
+
 UCLASS(Blueprintable, BlueprintType, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class BUBBLEGUN_API UBubblegunWeaponComponent : public USkeletalMeshComponent
 {
@@ -67,6 +69,8 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void SpawnFireVFX();
+
+	float GetCooldownRemaining() const { return FireCooldownTimer > 0.f ? FireCooldownTimer : -1.f; }
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
