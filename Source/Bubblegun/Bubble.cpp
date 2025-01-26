@@ -5,6 +5,7 @@
 
 #include "Templates/Tuple.h"
 #include "GenericPlatform/GenericPlatformMath.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include <MathUtil.h>
 
@@ -152,7 +153,16 @@ ABubble::ABubble()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-
+	BubbleMesh = CreateDefaultSubobject<UDynamicMeshComponent>(TEXT("BubbleMesh"));
+	RootComponent = BubbleMesh;
+	//BubbleMesh->SetMobility(EComponentMobility::Movable);
+	//BubbleMesh->SetSimulatePhysics(true);
+	BubbleMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	BubbleMesh->EnableComplexAsSimpleCollision();
+	BubbleMesh->bEnableComplexCollision = true;
+	BubbleMesh->ColorMode = EDynamicMeshComponentColorOverrideMode::None;
+	
+	BubbleMesh->OnComponentHit.AddDynamic(this, &ABubble::OnHit);
 }
 
 // Called when the game starts or when spawned
@@ -175,6 +185,8 @@ void ABubble::Tick(float DeltaTime)
 		BigNoiseChangeTimer = BigNoiseChangeInterval;
 	}
 	BigNoiseChangeTimer -= DeltaTime;
+
+	double deltaTime = FMathf::Min(DeltaTime, 1 / 15.0);
 
 	TArray<FVector3d> forces;
 	forces.Init(FVector3d::Zero(), BubbleMesh->GetDynamicMesh()->GetMeshRef().MaxVertexID());
@@ -201,12 +213,15 @@ void ABubble::Tick(float DeltaTime)
 
 				force += BubbleRandomStream.GetUnitVector() * ForceNoiseMagnitude;
 				force += (2.0 * FMath::Abs(FVector3d::DotProduct(pos - CenterOfMass, BigNoiseVector)) - 1) * (CenterOfMass - pos).GetSafeNormal() * ForceBigNoiseMagnitude;
+				force += GlobalForce / deltaTime;
 
 				forces[i] = force;
 			}
 		});
+	
+	GlobalForce = FVector3d::Zero();
 
-	double deltaTime = FMathf::Min(DeltaTime, 1 / 15.0);
+	FVector3d totalBounce = FVector3d::Zero();
 	BubbleMesh->GetDynamicMesh()->EditMesh(
 		[&](FDynamicMesh3& Mesh) {
 			for (int32 i = 0; i < Mesh.MaxVertexID(); i++) {
@@ -222,37 +237,48 @@ void ABubble::Tick(float DeltaTime)
 				FVector3d force = forces[i];
 				vel += force * deltaTime;
 				VertexVelocities[i] = vel * VelocityDamping;
-				Mesh.SetVertex(i, Mesh.GetVertex(i) + vel * deltaTime);
+				FVector3d newPos = Mesh.GetVertex(i) + vel * deltaTime;
+				auto params = FCollisionQueryParams::DefaultQueryParam;
+				params.AddIgnoredActor(this);
+				FHitResult Hit;
+				FVector3d ActorPos = GetActorLocation();
+				if (GetWorld()->LineTraceSingleByChannel(Hit, Mesh.GetVertex(i) + ActorPos, newPos + ActorPos, ECC_WorldDynamic, params)) {
+					//Mesh.SetVertex(i, Mesh.GetVertex(i) - vel * deltaTime);
+					// proper reflection taking Hit.ImpactNormal into account
+					FVector3d bounce = -FVector3d::DotProduct(VertexVelocities[i], Hit.ImpactNormal) * Hit.ImpactNormal;
+					VertexVelocities[i] = (VertexVelocities[i] + 1.9 * bounce);
+					totalBounce += bounce;
+				}
+				else {
+					Mesh.SetVertex(i, newPos);
+				}
 			}
 		}
 	);
+	GlobalForce += totalBounce * GlobalBounceMultiplier;
 
 	UpdateNormals();
 }
 
 void ABubble::Generate() {
-	if (IsValid(BubbleMesh)) {
-		BubbleMesh->DestroyComponent();
-	}
+	// BubbleMesh->SetOverrideRenderMaterial(BubbleMaterial);
+	BubbleMesh->SetMaterial(0, BubbleMaterial);
 
 	auto mesh = MeshRepr::GetSphere(Radius, Subdivisions, true);
 
-	BubbleMesh = NewObject<UDynamicMeshComponent>(this);
-	BubbleMesh->RegisterComponent();
-	BubbleMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	//BubbleMesh->SetMobility(EComponentMobility::Movable);
-	//BubbleMesh->SetSimulatePhysics(true);
-	BubbleMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	BubbleMesh->EnableComplexAsSimpleCollision();
-	BubbleMesh->bEnableComplexCollision = true;
-	BubbleMesh->SetOverrideRenderMaterial(BubbleMaterial);
+	FDynamicMesh3 dynMesh{ true, true, false, false };
+	dynMesh.EnableVertexColors(FVector4f{ 0, 1, 0, 1 });
+	dynMesh.EnableAttributes();
+	dynMesh.Attributes()->EnablePrimaryColors();
+	auto ColorOverlay = dynMesh.Attributes()->PrimaryColors();
 
-	FDynamicMesh3 dynMesh{ true, false, false, false };
 	for (const auto& pos : mesh.Positions) {
 		dynMesh.AppendVertex(pos);
+		ColorOverlay->AppendElement(FVector4f{ 0, 1, 0, 1 });
 	}
 	for (auto face : mesh.Faces) {
-		dynMesh.AppendTriangle(face.Get<1>(), face.Get<0>(), face.Get<2>());
+		int id = dynMesh.AppendTriangle(face.Get<1>(), face.Get<0>(), face.Get<2>());
+		ColorOverlay->SetTriangle(id, UE::Geometry::FIndex3i{ face.Get<1>(), face.Get<0>(), face.Get<2>() });
 	}
 
 	for (auto edge : dynMesh.GetEdgesBuffer()) {
@@ -263,32 +289,60 @@ void ABubble::Generate() {
 
 	VertexVelocities.Init(FVector3d::Zero(), dynMesh.MaxVertexID());
 
+	AverageVertexArea = 0;
+	for (int32 i = 0; i < dynMesh.MaxVertexID(); i++) {
+		double faceAreaSum = 0;
+		int faceCount = 0;
+		dynMesh.EnumerateVertexTriangles(i, [&](int32 face) {
+			FVector3d v0, v1, v2;
+			dynMesh.GetTriVertices(face, v0, v1, v2);
+			double faceArea = FMath::Abs(FVector3d::CrossProduct(v1 - v0, v2 - v0).Size() / 2);
+			faceAreaSum += faceArea;
+			faceCount++;
+		});
+		double vertexArea = faceAreaSum / faceCount / 3.0;
+		AverageVertexArea += vertexArea;
+	}
+	AverageVertexArea /= dynMesh.MaxVertexID();
+
 	UDynamicMesh* dynamicMesh = NewObject<UDynamicMesh>();
 	dynamicMesh->SetMesh(MoveTemp(dynMesh));
 
 	BubbleMesh->SetDynamicMesh(dynamicMesh);
 
 	UpdateNormals();
+
+	if (bRandomizeColor)
+		RandomizeColor();
 }
 
 void ABubble::UpdateNormals() {
+	auto ColorOverlay = BubbleMesh->GetDynamicMesh()->GetMeshRef().Attributes()->PrimaryColors();
 	BubbleMesh->GetDynamicMesh()->EditMesh(
 		[&](FDynamicMesh3& Mesh) {
 			for (int32 i = 0; i < Mesh.MaxVertexID(); i++) {
 				FVector3d faceNormalSum = FVector3d::Zero();
+				double faceAreaSum = 0.0;
 				int faceCount = 0;
 				Mesh.EnumerateVertexTriangles(i, [&](int32 faceID) {
 					FVector3d v0, v1, v2;
 					Mesh.GetTriVertices(faceID, v0, v1, v2);
+					double faceArea = FMath::Abs(FVector3d::CrossProduct(v1 - v0, v2 - v0).Size() / 2);
+					faceAreaSum += faceArea;
 					FVector3d faceNormal = -FVector3d::CrossProduct(v1 - v0, v2 - v0).GetSafeNormal();
 					faceNormalSum += faceNormal;
 					faceCount++;
 					});
 				FVector3d normal = faceNormalSum / faceCount;
 				Mesh.SetVertexNormal(i, FVector3f(normal));
+
+				double vertexArea = faceAreaSum / faceCount / 3.0;
+				Mesh.SetVertexColor(i, FVector4f(vertexArea / AverageVertexArea / 4.0, 0.0, 0.0, 1.0));
+				ColorOverlay->SetElement(i, FVector4f(vertexArea / AverageVertexArea / 4.0, 0.0, 1.0, 1.0));
 			}
 		}
 	);
+	BubbleMesh->NotifyMeshUpdated();
 }
 
 void ABubble::UpdateCenterOfMass() {
@@ -308,4 +362,74 @@ void ABubble::UpdateCenterOfMass() {
 			CenterOfMass = centerOfMass / totalArea;
 		}
 	);
+}
+
+void ABubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) {
+	if (!IsValid(OtherActor) || OtherActor == this || !IsValid(OtherComp))
+		return;
+
+	FDynamicMesh3* mesh = BubbleMesh->GetDynamicMesh()->GetMeshPtr();
+	int hitFaceIndex = Hit.FaceIndex;
+	if (hitFaceIndex == INDEX_NONE)
+	{
+		FVector TraceStart = Hit.ImpactPoint + Hit.ImpactNormal * 10.0f;
+		FVector TraceEnd = Hit.ImpactPoint - Hit.ImpactNormal * 10.0f;
+
+		FCollisionQueryParams QueryParams;
+		QueryParams.bReturnFaceIndex = true;
+		QueryParams.bTraceComplex = true;
+		QueryParams.AddIgnoredActor(OtherActor);
+
+		FHitResult TraceHit;
+		bool bHit = GetWorld()->LineTraceSingleByChannel(TraceHit, TraceEnd, TraceStart, ECC_WorldDynamic, QueryParams);
+
+		if (bHit && TraceHit.GetActor() == this)
+		{
+			int32 HitFaceIndex = TraceHit.FaceIndex;
+			if (HitFaceIndex != INDEX_NONE)
+			{
+				hitFaceIndex = HitFaceIndex;
+			}
+		}
+	}
+	if (hitFaceIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No hit face found"));
+		return;
+	}
+
+	auto hitFace = mesh->GetTriangle(hitFaceIndex);
+	int v0i = hitFace.A;
+	int v1i = hitFace.B;
+	int v2i = hitFace.C;
+
+	FVector3d velocityDelta = FVector3d(Hit.ImpactNormal);
+
+	UE_LOG(LogTemp, Warning, TEXT("Hit face %d %d %d with velocity delta %s, current velocity is %s"), v0i, v1i, v2i, *velocityDelta.ToString(), *VertexVelocities[v0i].ToString());
+
+	FVector3d vertexVelocityDelta = velocityDelta / 3 * ImpactVertexPushStrength;
+	VertexVelocities[v0i] += vertexVelocityDelta;
+	VertexVelocities[v1i] += vertexVelocityDelta;
+	VertexVelocities[v2i] += vertexVelocityDelta;
+
+	/*
+	for (int i = 0; i < VertexVelocities.Num(); i++) {
+		VertexVelocities[i] += velocityDelta * ImpactGlobalPushStrength;
+	}
+	*/
+	GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+}
+
+void ABubble::RandomizeColor() {
+	auto Material = BubbleMaterial->GetMaterial();
+	// Create a dynamic material instance
+	UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(Material, this);
+
+	if (DynamicMaterial)
+	{
+		FVector NewColor = FVector(BubbleRandomStream.GetFraction(), BubbleRandomStream.GetFraction(), BubbleRandomStream.GetFraction());
+		NewColor *= 1.0 / NewColor.Size() * (1.0 - 0.5 * (1.0 - NewColor.Size()));
+		DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
+		BubbleMesh->SetMaterial(0, DynamicMaterial);
+	}
 }

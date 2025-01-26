@@ -43,10 +43,10 @@ public:
 	double VelocityDamping = 0.999;
 
 	UPROPERTY(EditAnywhere, Category = "Bubble")
-	double ForceNoiseMagnitude = 20.0;
+	double ForceNoiseMagnitude = 10.0;
 
 	UPROPERTY(EditAnywhere, Category = "Bubble")
-	double ForceBigNoiseMagnitude = 0.05;
+	double ForceBigNoiseMagnitude = 0.08;
 
 	UPROPERTY(EditAnywhere, Category = "Bubble")
 	double BigNoiseChangeInterval = 0.5;
@@ -61,6 +61,23 @@ public:
 
 	TArray<FVector3d> VertexVelocities;
 
+	FVector3d GlobalForce = FVector3d::Zero();
+
+	UPROPERTY(EditAnywhere, Category = "Bubble")
+	double AverageVertexArea = 0.0;
+
+	UPROPERTY(EditAnywhere, Category = "Bubble")
+	double ImpactVertexPushStrength = 300.0;
+
+	UPROPERTY(EditAnywhere, Category = "Bubble")
+	double ImpactGlobalPushStrength = 75.0;
+
+	UPROPERTY(EditAnywhere, Category = "Bubble")
+	double GlobalBounceMultiplier = 0.5;
+
+	UPROPERTY(EditAnywhere, Category = "Bubble")
+	bool bRandomizeColor = false;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -74,4 +91,10 @@ public:
 	void UpdateNormals();
 
 	void UpdateCenterOfMass();
+
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	UFUNCTION()
+	void RandomizeColor();
 };
