@@ -192,6 +192,9 @@ void ABubble::Tick(float DeltaTime)
 
 	double deltaTime = FMathf::Min(DeltaTime, 1 / 15.0);
 
+	double VertexDisplacementSum = 0;
+	int VertexCount = 0;
+
 	TArray<FVector3d> forces;
 	forces.Init(FVector3d::Zero(), BubbleMesh->GetDynamicMesh()->GetMeshRef().MaxVertexID());
 	BubbleMesh->GetDynamicMesh()->ProcessMesh(
@@ -222,24 +225,31 @@ void ABubble::Tick(float DeltaTime)
 				force += GlobalForce / deltaTime;
 
 				forces[i] = force;
+
+				VertexDisplacementSum += (pos - CenterOfMass).Size();
+				VertexCount++;
 			}
 		});
+	ActualRadius = VertexDisplacementSum / VertexCount;
 	
 	GlobalForce = FVector3d::Zero();
 
 	FDynamicMesh3* mesh = BubbleMesh->GetDynamicMesh()->GetMeshPtr();
+	int index = -1;
+	TArray<AActor*> actorsToRemove;
 	for (auto& push : CurrentPushes) {
+		index++;
 		auto [faceIndex, velocityDelta, distance] = push.Value;
 		AActor* actor = push.Key;
 
 		if (!IsValid(actor)) {
-			CurrentPushes.Remove(actor);
+			actorsToRemove.Add(actor);
 			continue;
 		}
 		
 		double actorDistance = (actor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size();
 		if (actorDistance > distance * 1.5) {
-			CurrentPushes.Remove(actor);
+			actorsToRemove.Add(actor);
 			continue;
 		}
 
@@ -253,6 +263,9 @@ void ABubble::Tick(float DeltaTime)
 		VertexVelocities[v2i] += vertexVelocityDelta;
 
 		GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+	}
+	for (auto actor : actorsToRemove) {
+		CurrentPushes.Remove(actor);
 	}
 
 	FVector3d totalBounce = FVector3d::Zero();
@@ -442,17 +455,12 @@ void ABubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitive
 
 	UE_LOG(LogTemp, Warning, TEXT("Hit face %d %d %d with velocity delta %s, current velocity is %s"), v0i, v1i, v2i, *velocityDelta.ToString(), *VertexVelocities[v0i].ToString());
 
-	FVector3d vertexVelocityDelta = velocityDelta / 3 * ImpactVertexPushStrength;
+	FVector3d vertexVelocityDelta = velocityDelta / 3 * ImpactVertexPushStrength * HitSingleVertexFactor(OtherActor);
 	VertexVelocities[v0i] += vertexVelocityDelta;
 	VertexVelocities[v1i] += vertexVelocityDelta;
 	VertexVelocities[v2i] += vertexVelocityDelta;
 
-	/*
-	for (int i = 0; i < VertexVelocities.Num(); i++) {
-		VertexVelocities[i] += velocityDelta * ImpactGlobalPushStrength;
-	}
-	*/
-	GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+	GlobalForce += velocityDelta * ImpactGlobalPushStrength * HitGlobalFactor(OtherActor);
 
 	CurrentPushes.Add(OtherActor, TTuple<int32, FVector, double>{hitFaceIndex, velocityDelta, (OtherActor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size()});
 }
@@ -482,4 +490,10 @@ void ABubble::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherAct
 	if (!IsValid(OtherActor) || OtherActor == this || !IsValid(OtherComp))
 		return;
 	UE_LOG(LogTemp, Warning, TEXT("Overlap end with %s"), *OtherActor->GetName());
+}
+
+void ABubble::GrowBubble(double Amount) {
+	double NewRadius = Radius + Amount;
+	AirPressureForce = AirPressureForce * FMath::Pow(NewRadius / Radius, 4);
+	Radius = NewRadius;
 }

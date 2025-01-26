@@ -81,6 +81,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	bool bRandomizeColor = false;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bubble")
+	double ActualRadius = 0;
 
 	TMap<AActor*, TTuple<int32, FVector, double>> CurrentPushes;
 
@@ -110,4 +113,17 @@ public:
 
 	UFUNCTION()
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Bubble")
+	void GrowBubble(double Amount);
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Bubble")
+	float HitSingleVertexFactor(AActor* HitActor);
+
+	float HitSingleVertexFactor_Implementation(AActor* HitActor) { return 1.0; }
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Bubble")
+	float HitGlobalFactor(AActor* HitActor);
+
+	float HitGlobalFactor_Implementation(AActor* HitActor) { return 1.0; }
 };
