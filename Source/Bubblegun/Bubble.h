@@ -16,45 +16,45 @@ public:
 	// Sets default values for this actor's properties
 	ABubble();
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	float Radius = 100.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bubble")
 	int Subdivisions = 3;
 
 	// dynamic mesh
-	UPROPERTY(VisibleAnywhere, Category = "Bubble")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bubble")
 	UDynamicMeshComponent* BubbleMesh;
 
 	// material instance of the bubble
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bubble")
 	UMaterialInstance* BubbleMaterial;
 
 	UPROPERTY(VisibleAnywhere, Category = "Bubble")
 	FVector3d CenterOfMass;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double AirPressureForce = 500000;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double SpringCoefficient = 10.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double VelocityDamping = 0.999;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ForceNoiseMagnitude = 20.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ForceBigNoiseMagnitude = 0.05;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double BigNoiseChangeInterval = 0.5;
 
 	UPROPERTY(VisibleAnywhere, Category = "Bubble")
 	FVector3d BigNoiseVector;
 
-	UPROPERTY(VisibleAnywhere, Category = "Bubble")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double BigNoiseChangeTimer = 0.0;
 
 	TArray<double> TargetEdgeLengths;
