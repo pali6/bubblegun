@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "BubblegunWeaponComponent.h"
+#include "BubbleGameInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -258,8 +259,14 @@ void ABubblegunCharacter::InputLook(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
+	float MouseSensitivity = 1.f;
+	if (UBubbleGameInstance* GameInstance = Cast<UBubbleGameInstance>(GetGameInstance()))
+	{
+		MouseSensitivity = GameInstance->MouseSensitivity;
+	}
+
 	// add yaw and pitch input to controller
-	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(LookAxisVector.Y);
+	AddControllerYawInput(LookAxisVector.X * MouseSensitivity);
+	AddControllerPitchInput(LookAxisVector.Y * MouseSensitivity);
 
 }
