@@ -7,7 +7,10 @@
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "DynamicMesh/DynamicMesh3.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include <MathUtil.h>
+#include <Kismet/GameplayStatics.h>
 
 struct MeshRepr {
 	TArray<FVector> Positions;
@@ -496,4 +499,43 @@ void ABubble::GrowBubble(double Amount) {
 	double NewRadius = Radius + Amount;
 	AirPressureForce = AirPressureForce * FMath::Pow(NewRadius / Radius, 4);
 	Radius = NewRadius;
+}
+
+void ABubble::Pop() {
+	if (PopSound) {
+		UGameplayStatics::PlaySoundAtLocation(this, PopSound, GetActorLocation() + CenterOfMass);
+	}
+
+	double PopForce = ActualRadius;
+
+	// explosive force
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	TArray<FHitResult> HitResults;
+	GetWorld()->SweepMultiByChannel(HitResults, GetActorLocation() + CenterOfMass, GetActorLocation() + CenterOfMass, FQuat::Identity, ECC_WorldDynamic, FCollisionShape::MakeSphere(PopForce * PopForceBase), QueryParams);
+	for (auto& Hit : HitResults) {
+		if (!IsValid(Hit.GetActor()) || Hit.GetActor() == this)
+			continue;
+		if (Cast<ABubble>(Hit.GetActor()))
+			continue;
+
+		FVector Direction = (Hit.ImpactPoint - (GetActorLocation() + CenterOfMass)).GetSafeNormal();
+		double Distance = (Hit.ImpactPoint - (GetActorLocation() + CenterOfMass)).Size();
+
+		double PopForce2 = FMath::Max(0, FMath::Pow(PopForce - 30, 2.5));
+		auto Character = Cast<ACharacter>(Hit.GetActor());
+		if (Character) {
+			Character->GetCharacterMovement()->AddImpulse(Direction * PopForce2 * PopForceBase / Distance, true);
+			UE_LOG(LogTemp, Warning, TEXT("Character hit"));
+		}
+		else {
+			auto Primitive = Cast<UPrimitiveComponent>(Hit.GetActor()->GetRootComponent());
+			if (Primitive && Primitive->IsSimulatingPhysics()) {
+				Primitive->AddImpulseAtLocation(Direction * PopForce2 * PopForceBase / Distance, Hit.ImpactPoint);
+				UE_LOG(LogTemp, Warning, TEXT("Primitive %s hit"), *Hit.GetActor()->GetName());
+			}
+		}
+	}
+
+	Destroy();
 }

@@ -87,6 +87,12 @@ public:
 
 	TMap<AActor*, TTuple<int32, FVector, double>> CurrentPushes;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
+	USoundWave* PopSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
+	double PopForceBase = 1000;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -126,4 +132,7 @@ public:
 	float HitGlobalFactor(AActor* HitActor);
 
 	float HitGlobalFactor_Implementation(AActor* HitActor) { return 1.0; }
+
+	UFUNCTION(BlueprintCallable, Category = "Bubble")
+	void Pop();
 };
