@@ -30,8 +30,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bubble")
 	UMaterialInstance* BubbleMaterial;
 
-	UPROPERTY(VisibleAnywhere, Category = "Bubble")
-	FVector3d CenterOfMass;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bubble")
+	FVector CenterOfMass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double AirPressureForce = 500000;
