@@ -42,10 +42,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double VelocityDamping = 0.999;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ForceNoiseMagnitude = 10.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ForceBigNoiseMagnitude = 0.08;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
