@@ -19,7 +19,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	float Radius = 100.0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
+	float InitialRadius = 100.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	int Subdivisions = 3;
 
 	// dynamic mesh
@@ -61,22 +64,25 @@ public:
 
 	TArray<FVector3d> VertexVelocities;
 
-	FVector3d GlobalForce = FVector3d::Zero();
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Bubble")
+	FVector GlobalForce = FVector::Zero();
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bubble")
 	double AverageVertexArea = 0.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ImpactVertexPushStrength = 300.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double ImpactGlobalPushStrength = 75.0;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	double GlobalBounceMultiplier = 0.5;
 
-	UPROPERTY(EditAnywhere, Category = "Bubble")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	bool bRandomizeColor = false;
+
+	TMap<AActor*, TTuple<int32, FVector, double>> CurrentPushes;
 
 protected:
 	// Called when the game starts or when spawned
@@ -86,6 +92,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	UFUNCTION(BlueprintCallable, Category = "Bubble")
 	void Generate();
 
 	void UpdateNormals();
@@ -97,4 +104,10 @@ public:
 
 	UFUNCTION()
 	void RandomizeColor();
+
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 };

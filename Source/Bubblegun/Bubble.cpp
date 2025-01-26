@@ -161,14 +161,18 @@ ABubble::ABubble()
 	BubbleMesh->EnableComplexAsSimpleCollision();
 	BubbleMesh->bEnableComplexCollision = true;
 	BubbleMesh->ColorMode = EDynamicMeshComponentColorOverrideMode::None;
-	
-	BubbleMesh->OnComponentHit.AddDynamic(this, &ABubble::OnHit);
+
+	BubbleMesh->GetBodyInstance()->bUseCCD = true;
 }
 
 // Called when the game starts or when spawned
 void ABubble::BeginPlay()
 {
 	Super::BeginPlay();
+
+	BubbleMesh->OnComponentHit.AddDynamic(this, &ABubble::OnHit);
+	BubbleMesh->OnComponentBeginOverlap.AddDynamic(this, &ABubble::OnOverlapBegin);
+	BubbleMesh->OnComponentEndOverlap.AddDynamic(this, &ABubble::OnOverlapEnd);
 	
 	Generate();
 }
@@ -197,6 +201,7 @@ void ABubble::Tick(float DeltaTime)
 
 				FVector3d pos = Mesh.GetVertex(i);
 				FVector3d airPressureForce = (pos - CenterOfMass).GetSafeNormal();
+				airPressureForce = (airPressureForce + FVector(Mesh.GetVertexNormal(i))).GetSafeNormal();
 				double comDistance = (pos - CenterOfMass).Size();
 				airPressureForce *= 1 / (comDistance * comDistance) * AirPressureForce;
 				force += airPressureForce;
@@ -207,7 +212,8 @@ void ABubble::Tick(float DeltaTime)
 					FVector3d neighPos = Mesh.GetVertex(neigh);
 					FVector3d springForce = (neighPos - pos).GetSafeNormal();
 					double edgeLength = (neighPos - pos).Size();
-					springForce *= (edgeLength - TargetEdgeLengths[edgeId]) * SpringCoefficient;
+					double targetLength = TargetEdgeLengths[edgeId] * Radius / InitialRadius;
+					springForce *= (edgeLength - targetLength) * SpringCoefficient;
 					force += springForce;
 				});
 
@@ -220,6 +226,34 @@ void ABubble::Tick(float DeltaTime)
 		});
 	
 	GlobalForce = FVector3d::Zero();
+
+	FDynamicMesh3* mesh = BubbleMesh->GetDynamicMesh()->GetMeshPtr();
+	for (auto& push : CurrentPushes) {
+		auto [faceIndex, velocityDelta, distance] = push.Value;
+		AActor* actor = push.Key;
+
+		if (!IsValid(actor)) {
+			CurrentPushes.Remove(actor);
+			continue;
+		}
+		
+		double actorDistance = (actor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size();
+		if (actorDistance > distance * 1.5) {
+			CurrentPushes.Remove(actor);
+			continue;
+		}
+
+		auto hitFace = mesh->GetTriangle(faceIndex);
+		int v0i = hitFace.A;
+		int v1i = hitFace.B;
+		int v2i = hitFace.C;
+		FVector3d vertexVelocityDelta = velocityDelta / 3 * ImpactVertexPushStrength;
+		VertexVelocities[v0i] += vertexVelocityDelta;
+		VertexVelocities[v1i] += vertexVelocityDelta;
+		VertexVelocities[v2i] += vertexVelocityDelta;
+
+		GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+	}
 
 	FVector3d totalBounce = FVector3d::Zero();
 	BubbleMesh->GetDynamicMesh()->EditMesh(
@@ -264,6 +298,7 @@ void ABubble::Generate() {
 	// BubbleMesh->SetOverrideRenderMaterial(BubbleMaterial);
 	BubbleMesh->SetMaterial(0, BubbleMaterial);
 
+	Radius = InitialRadius;
 	auto mesh = MeshRepr::GetSphere(Radius, Subdivisions, true);
 
 	FDynamicMesh3 dynMesh{ true, true, false, false };
@@ -418,6 +453,8 @@ void ABubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitive
 	}
 	*/
 	GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+
+	CurrentPushes.Add(OtherActor, TTuple<int32, FVector, double>{hitFaceIndex, velocityDelta, (OtherActor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size()});
 }
 
 void ABubble::RandomizeColor() {
@@ -428,8 +465,21 @@ void ABubble::RandomizeColor() {
 	if (DynamicMaterial)
 	{
 		FVector NewColor = FVector(BubbleRandomStream.GetFraction(), BubbleRandomStream.GetFraction(), BubbleRandomStream.GetFraction());
-		NewColor *= 1.0 / NewColor.Size() * (1.0 - 0.5 * (1.0 - NewColor.Size()));
+		NewColor /= 2.0;
+		//NewColor *= 1.0 / NewColor.Size() * (1.0 - 0.5 * (1.0 - NewColor.Size()));
 		DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
 		BubbleMesh->SetMaterial(0, DynamicMaterial);
 	}
+}
+
+void ABubble::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+	if (!IsValid(OtherActor) || OtherActor == this || !IsValid(OtherComp))
+		return;
+	UE_LOG(LogTemp, Warning, TEXT("Overlap begin with %s"), *OtherActor->GetName());
+}
+
+void ABubble::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex) {
+	if (!IsValid(OtherActor) || OtherActor == this || !IsValid(OtherComp))
+		return;
+	UE_LOG(LogTemp, Warning, TEXT("Overlap end with %s"), *OtherActor->GetName());
 }
