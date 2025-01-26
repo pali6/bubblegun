@@ -227,6 +227,34 @@ void ABubble::Tick(float DeltaTime)
 	
 	GlobalForce = FVector3d::Zero();
 
+	FDynamicMesh3* mesh = BubbleMesh->GetDynamicMesh()->GetMeshPtr();
+	for (auto& push : CurrentPushes) {
+		auto [faceIndex, velocityDelta, distance] = push.Value;
+		AActor* actor = push.Key;
+
+		if (!IsValid(actor)) {
+			CurrentPushes.Remove(actor);
+			continue;
+		}
+		
+		double actorDistance = (actor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size();
+		if (actorDistance > distance * 1.5) {
+			CurrentPushes.Remove(actor);
+			continue;
+		}
+
+		auto hitFace = mesh->GetTriangle(faceIndex);
+		int v0i = hitFace.A;
+		int v1i = hitFace.B;
+		int v2i = hitFace.C;
+		FVector3d vertexVelocityDelta = velocityDelta / 3 * ImpactVertexPushStrength;
+		VertexVelocities[v0i] += vertexVelocityDelta;
+		VertexVelocities[v1i] += vertexVelocityDelta;
+		VertexVelocities[v2i] += vertexVelocityDelta;
+
+		GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+	}
+
 	FVector3d totalBounce = FVector3d::Zero();
 	BubbleMesh->GetDynamicMesh()->EditMesh(
 		[&](FDynamicMesh3& Mesh) {
@@ -425,6 +453,8 @@ void ABubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitive
 	}
 	*/
 	GlobalForce += velocityDelta * ImpactGlobalPushStrength;
+
+	CurrentPushes.Add(OtherActor, TTuple<int32, FVector, double>{hitFaceIndex, velocityDelta, (OtherActor->GetActorLocation() - (GetActorLocation() + CenterOfMass)).Size()});
 }
 
 void ABubble::RandomizeColor() {

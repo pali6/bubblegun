@@ -82,6 +82,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bubble")
 	bool bRandomizeColor = false;
 
+	TMap<AActor*, TTuple<int32, FVector, double>> CurrentPushes;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
