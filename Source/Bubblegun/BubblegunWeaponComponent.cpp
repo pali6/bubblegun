@@ -22,13 +22,21 @@ UBubblegunWeaponComponent::UBubblegunWeaponComponent()
 }
 
 
+
+
 void UBubblegunWeaponComponent::Fire()
 {
-	if (Character == nullptr || Character->GetController() == nullptr)
+	if (Character == nullptr || Character->GetController() == nullptr || FireCooldownTimer > 0.f)
 	{
 		return;
 	}
 
+	FireCooldownTimer = FireCooldown;
+	OnFire();
+}
+
+void UBubblegunWeaponComponent::FireProjectile()
+{
 	// Try and fire a projectile
 	if (ProjectileClass != nullptr)
 	{
@@ -45,23 +53,29 @@ void UBubblegunWeaponComponent::Fire()
 			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
 			// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
 			//const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
-	
+
 			//Set Spawn Collision Handling Override
 			FActorSpawnParameters ActorSpawnParams;
 			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 			ActorSpawnParams.Instigator = Character;
-	
+
 			// Spawn the projectile at the muzzle
 			World->SpawnActor<ABubblegunProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
 		}
 	}
-	
+}
+
+void UBubblegunWeaponComponent::PlayFireSound()
+{
 	// Try and play the sound if specified
 	if (FireSound != nullptr)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 	}
-	
+}
+
+void UBubblegunWeaponComponent::PlayFireAnimation()
+{
 	// Try and play a firing animation if specified
 	if (FireAnimation != nullptr)
 	{
@@ -74,7 +88,17 @@ void UBubblegunWeaponComponent::Fire()
 	}
 }
 
-bool UBubblegunWeaponComponent::AttachWeapon(ABubblegunCharacter* TargetCharacter)
+void UBubblegunWeaponComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (FireCooldownTimer > 0.f)
+	{
+		FireCooldownTimer -= DeltaTime;
+	}
+}
+
+bool UBubblegunWeaponComponent::AttachWeapon(ABubblegunCharacter* TargetCharacter, FName SocketName)
 {
 	Character = TargetCharacter;
 
@@ -86,7 +110,7 @@ bool UBubblegunWeaponComponent::AttachWeapon(ABubblegunCharacter* TargetCharacte
 
 	// Attach the weapon to the First Person Character
 	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
-	AttachToComponent(Character->GetMesh1P(), AttachmentRules, FName(TEXT("GripPoint")));
+	AttachToComponent(Character->GetMesh1P(), AttachmentRules, SocketName);
 	SetRelativeTransform(GripCorrectionTransform);
 
 	// Set up action bindings

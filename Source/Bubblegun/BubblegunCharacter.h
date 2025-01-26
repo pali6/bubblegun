@@ -19,6 +19,8 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAltFireShot, float, TimeLeft);
+
 UCLASS(config=Game)
 class ABubblegunCharacter : public ACharacter
 {
@@ -85,8 +87,17 @@ class ABubblegunCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, Category = Input)
 	TSubclassOf<UBubblegunWeaponComponent> BubblegunClass;
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = Input)
+	TSubclassOf<UBubblegunWeaponComponent> AltWeaponClass;
+
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	UBubblegunWeaponComponent* WeaponComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	UBubblegunWeaponComponent* LeftWeaponComp;
+
+private:
 
 	float HeadBobTimer = 0.f;
 	float HeadBobTransitionTimer = 0.f;
@@ -99,6 +110,7 @@ class ABubblegunCharacter : public ACharacter
 	float LandedCameraTimer = 0.f;
 
 public:
+
 	ABubblegunCharacter();
 
 protected:
@@ -121,9 +133,15 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+	// For animation notify... the animation is already playing.
+	UFUNCTION(BlueprintCallable)
+	void FireSecondaryWeapon();
 
 	bool IsDashing() const { return DashTimer >= 0.f; }
 	bool CanDash() const { return DashCooldownTimer < 0.f && !IsDashing(); }
+
+	UPROPERTY(BlueprintAssignable)
+	FAltFireShot AltFireShot;
 
 private:
 	void UpdateHeadBob(float DeltaTime);
